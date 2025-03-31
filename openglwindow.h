@@ -4,6 +4,14 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QMouseEvent>
+
+//UI Widget
+#include <QCheckBox>
+#include <QPushButton>
+#include <QSlider>
+#include <QLabel>
+
+
 #include "objloader.h"
 
 class OpenGLWindow : public QOpenGLWidget, protected QOpenGLFunctions
@@ -25,23 +33,75 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
+private slots: //assignment3 - 1
+    // 조명 On/Off 토글
+    void toggleLight0(bool enabled);
+
+    // 셰이딩 모드 전환
+    void setFlatShading();
+    void setGouraudShading();
+
+    // Ambient RGBA 조절
+    void updateAmbientR(int value);
+    void updateAmbientG(int value);
+    void updateAmbientB(int value);
+    void updateAmbientA(int value);
+
+    // Specular RGBA 조절
+    void updateSpecularR(int value);
+    void updateSpecularG(int value);
+    void updateSpecularB(int value);
+    void updateSpecularA(int value);
+
 private:
     ObjLoader objLoader;
 
     // 마우스 이벤트
-    bool isDragging = false;  // 드래그 상태 확인
-    bool isModelRotating = false; // 모델 회전 상태 확인
-    QPoint lastMousePosition; // 이전 마우스 위치 저장
+    bool isDragging = false;
+    bool isModelRotating = false;
+    bool rotateFirstCow = true; // 클릭 위치로 회전 대상 결정
+    QPoint lastMousePosition;
 
-    float yaw = -90.0f;   // Y축 회전 (초기값: -90도)
-    float pitch = 0.0f;   // X축 회전 (초기값: 0도)
-    float sensitivity = 0.2f; // 마우스 감도 조절
+    // 각 소의 회전 값
+    float cow1RotationX = 0.0f;
+    float cow1RotationY = 0.0f;
+    float cow1RotationZ = 0.0f;
 
-    // 모델 회전 변수
-    float modelRotationX = 0.0f;    // 모델의 X축 회전 각도
-    float modelRotationY = 0.0f;    // 모델의 Y축 회전 각도
-    float modelRotationZ = 0.0f;    // 모델의 Z축 회전 각도 (선택 사항)
-    float modelRotationSensitivity = 0.5f; // 모델 회전 감도
+    float cow2RotationX = 0.0f;
+    float cow2RotationY = 0.0f;
+    float cow2RotationZ = 0.0f;
+
+    // 소 + 환경 그리기
+    void drawCow();
+    void drawFloorAndWalls();
+
+    // 조명 상태
+    bool light0On = true;
+    GLfloat light0Pos[4] = { 5.0f, 5.0f, 5.0f, 1.0f };
+
+    // 조명 특성
+    GLfloat ambientLight[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
+    GLfloat specularColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    // 셰이딩 모드
+    GLenum shadingModel = GL_SMOOTH;
+
+    // UI 구성 요소
+    QCheckBox* light0Checkbox;
+    QPushButton* flatButton;
+    QPushButton* gouraudButton;
+
+    QSlider* ambientRSlider;
+    QSlider* ambientGSlider;
+    QSlider* ambientBSlider;
+    QSlider* ambientASlider;
+
+    QSlider* specularRSlider;
+    QSlider* specularGSlider;
+    QSlider* specularBSlider;
+    QSlider* specularASlider;
+
+    void setupUI(); // UI 초기화 함수
 };
 
 #endif // OPENGLWINDOW_H
