@@ -90,20 +90,20 @@ bool ObjLoader::load(const std::string& filename) {
         // 5. 삼각형이 카메라를 향하지 않으면 뒤집기 (시계방향 ↔ 반시계방향)
         if (dotProduct < 0) {
             std::swap(face.v1, face.v3);
-            std::cout << "Flipped Face: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
+            //std::cout << "Flipped Face: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
         } else {
-            std::cout << "Face Normal: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
+            //std::cout << "Face Normal: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
         }
     }
 
     std::cout << "Loaded Vertices:" << std::endl;
     for (size_t i = 0; i < vertices.size(); i++) {
-        std::cout << i+1 << ": (" << vertices[i].x << ", " << vertices[i].y << ", " << vertices[i].z << ")" << std::endl;
+        //std::cout << i+1 << ": (" << vertices[i].x << ", " << vertices[i].y << ", " << vertices[i].z << ")" << std::endl;
     }
 
     std::cout << "Loaded Faces:" << std::endl;
     for (const auto& face : faces) {
-        std::cout << "Face: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
+        //std::cout << "Face: " << face.v1 << ", " << face.v2 << ", " << face.v3 << std::endl;
     }
 
     return true;

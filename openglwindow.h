@@ -5,6 +5,9 @@
 #include <QOpenGLFunctions>
 #include <QMouseEvent>
 
+#include <QImage>
+#include <QOpenGLTexture>
+
 //UI Widget
 #include <QCheckBox>
 #include <QPushButton>
@@ -55,6 +58,9 @@ private slots: //assignment3 - 1
 
 private:
     ObjLoader objLoader;
+
+    // 텍스처
+    QOpenGLTexture* cowTexture = nullptr;
 
     // 마우스 이벤트
     bool isDragging = false;

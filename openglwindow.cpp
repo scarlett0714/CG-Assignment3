@@ -6,7 +6,7 @@
 #include <QHBoxLayout>
 
 OpenGLWindow::OpenGLWindow(QWidget *parent)
-    : QOpenGLWidget(parent)
+    : QOpenGLWidget(parent), cowTexture(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus); // 입력을 받을 수 있도록 설정
     installEventFilter(this); // QT 이벤트 필터 감지
@@ -20,6 +20,7 @@ void OpenGLWindow::initializeGL() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
     glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_TEXTURE_2D); // 텍스처 사용 활성화
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
     glShadeModel(shadingModel);
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -29,6 +30,18 @@ void OpenGLWindow::initializeGL() {
     glLightfv(GL_LIGHT0, GL_DIFFUSE, specularColor);
     glLightfv(GL_LIGHT0, GL_SPECULAR, specularColor);
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambientLight);
+
+    // 텍스처 로드
+    QImage img("/Users/hwang-yoonseon/Desktop/konkuk/wsu/cg/assignment_3/cow-tex-fin.jpg");
+    if (!img.isNull()) {
+        cowTexture = new QOpenGLTexture(img.mirrored());
+        cowTexture->setMinificationFilter(QOpenGLTexture::Linear);
+        cowTexture->setMagnificationFilter(QOpenGLTexture::Linear);
+        cowTexture->setWrapMode(QOpenGLTexture::Repeat);
+        std::cout << "Texture loaded successfully." << std::endl;
+    } else {
+        std::cerr << "Failed to load cow_texture.jpg" << std::endl;
+    }
 }
 
 void OpenGLWindow::resizeGL(int w, int h) {
@@ -131,6 +144,9 @@ void OpenGLWindow::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void OpenGLWindow::drawCow() {
+
+    if (cowTexture) cowTexture->bind(); // 텍스처 바인딩
+
     if (shadingModel == GL_FLAT) {
         glShadeModel(GL_FLAT);
         glBegin(GL_TRIANGLES);
@@ -150,9 +166,11 @@ void OpenGLWindow::drawCow() {
             if (length != 0.0f) { nx /= length; ny /= length; nz /= length; }
 
             glNormal3f(nx, ny, nz);
-            glVertex3f(v1.x, v1.y, v1.z);
-            glVertex3f(v2.x, v2.y, v2.z);
-            glVertex3f(v3.x, v3.y, v3.z);
+
+            // 임의 텍스처 좌표 생성 (x, z 기반)
+            glTexCoord2f((v1.x + 1.0f) * 0.5f, (v1.z + 1.0f) * 0.5f); glVertex3f(v1.x, v1.y, v1.z);
+            glTexCoord2f((v2.x + 1.0f) * 0.5f, (v2.z + 1.0f) * 0.5f); glVertex3f(v2.x, v2.y, v2.z);
+            glTexCoord2f((v3.x + 1.0f) * 0.5f, (v3.z + 1.0f) * 0.5f); glVertex3f(v3.x, v3.y, v3.z);
         }
         glEnd();
     } else {
@@ -197,11 +215,14 @@ void OpenGLWindow::drawCow() {
                 const auto& v = objLoader.vertices[idx];
                 const QVector3D& n = vertexNormals[idx];
                 glNormal3f(n.x(), n.y(), n.z());
+                glTexCoord2f((v.x + 1.0f) * 0.5f, (v.z + 1.0f) * 0.5f); // 임의 텍스처 좌표 (v.x, v.z 기준)
                 glVertex3f(v.x, v.y, v.z);
             }
         }
         glEnd();
     }
+
+    if (cowTexture) cowTexture->release(); // 텍스처 해제
 
 }
 
