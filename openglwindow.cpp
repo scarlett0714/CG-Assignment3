@@ -25,10 +25,19 @@ void OpenGLWindow::initializeGL() {
     glShadeModel(shadingModel);
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
+    // LIGHT0 설정
     glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_POSITION, light0Pos);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, specularColor);
     glLightfv(GL_LIGHT0, GL_SPECULAR, specularColor);
+
+    // LIGHT1 설정
+    glEnable(GL_LIGHT1);
+    glLightfv(GL_LIGHT1, GL_POSITION, light1Pos);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, light1Diffuse);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, light1Diffuse); // specular도 동일하게
+
+
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambientLight);
 
     // 텍스처 로드
@@ -49,6 +58,14 @@ void OpenGLWindow::resizeGL(int w, int h) {
 }
 
 void OpenGLWindow::paintGL() {
+
+    // (1) Ray Tracing 텍스처 생성
+    if (useRayTracing) {
+        renderRayTracing();
+        return;
+    }
+
+    // (2) OpenGL 씬 클리어 및 설정
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
@@ -72,9 +89,20 @@ void OpenGLWindow::paintGL() {
         glLightfv(GL_LIGHT0, GL_SPECULAR, noDiffuse);
     }
 
+    // Light 1
+    if (light1On) {
+        glEnable(GL_LIGHT1);
+        glLightfv(GL_LIGHT1, GL_POSITION, light1Pos);
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, light1Diffuse);
+        glLightfv(GL_LIGHT1, GL_SPECULAR, light1Diffuse);
+    } else {
+        glDisable(GL_LIGHT1);
+    }
+
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambientLight);
     glShadeModel(shadingModel);
 
+    // (3) 씬 렌더링
     drawFloorAndWalls();
 
     // Draw first cow (left)
@@ -274,6 +302,13 @@ void OpenGLWindow::toggleLight0(bool enabled) {
     update();
 }
 
+void OpenGLWindow::toggleLight1(bool enabled) {
+    light1On = enabled;
+    makeCurrent();
+    update();
+}
+
+
 void OpenGLWindow::setFlatShading() {
     shadingModel = GL_FLAT;
     makeCurrent();
@@ -337,25 +372,43 @@ void OpenGLWindow::updateSpecularA(int value) {
 }
 
 void OpenGLWindow::setupUI() {
-    QVBoxLayout* layout = new QVBoxLayout(this);
+    QWidget* wrapper = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(wrapper);
 
+    // ----------- 상단 UI 영역 ----------
+    QWidget* topUI = new QWidget(this);
+    QVBoxLayout* controlLayout = new QVBoxLayout(topUI);
+
+    // Light 체크박스
     light0Checkbox = new QCheckBox("Light 0", this);
     light0Checkbox->setChecked(true);
     connect(light0Checkbox, &QCheckBox::toggled, this, &OpenGLWindow::toggleLight0);
 
+    // Light 1 토글
+    light1Checkbox = new QCheckBox("Light 1", this);
+    light1Checkbox->setChecked(true);
+    connect(light1Checkbox, &QCheckBox::toggled, this, &OpenGLWindow::toggleLight1);
+
+    controlLayout->addWidget(light0Checkbox);
+    controlLayout->addWidget(light1Checkbox);
+
+    // 셰이딩 버튼 가로 정렬
     flatButton = new QPushButton("Flat Shading", this);
     gouraudButton = new QPushButton("Gouraud Shading", this);
     connect(flatButton, &QPushButton::clicked, this, &OpenGLWindow::setFlatShading);
     connect(gouraudButton, &QPushButton::clicked, this, &OpenGLWindow::setGouraudShading);
 
-    QLabel* ambientLabel = new QLabel("Ambient Light RGBA", this);
-    QLabel* specularLabel = new QLabel("Specular Color RGBA", this);
+    QHBoxLayout* shadingButtonsLayout = new QHBoxLayout();
+    shadingButtonsLayout->addWidget(flatButton);
+    shadingButtonsLayout->addWidget(gouraudButton);
 
+    // Ambient 슬라이더
     ambientRSlider = new QSlider(Qt::Horizontal, this);
     ambientGSlider = new QSlider(Qt::Horizontal, this);
     ambientBSlider = new QSlider(Qt::Horizontal, this);
     ambientASlider = new QSlider(Qt::Horizontal, this);
 
+    // Specular 슬라이더
     specularRSlider = new QSlider(Qt::Horizontal, this);
     specularGSlider = new QSlider(Qt::Horizontal, this);
     specularBSlider = new QSlider(Qt::Horizontal, this);
@@ -370,6 +423,7 @@ void OpenGLWindow::setupUI() {
         slider->setValue(100);
     }
 
+    // 슬라이더 연결
     connect(ambientRSlider, &QSlider::valueChanged, this, &OpenGLWindow::updateAmbientR);
     connect(ambientGSlider, &QSlider::valueChanged, this, &OpenGLWindow::updateAmbientG);
     connect(ambientBSlider, &QSlider::valueChanged, this, &OpenGLWindow::updateAmbientB);
@@ -380,21 +434,170 @@ void OpenGLWindow::setupUI() {
     connect(specularBSlider, &QSlider::valueChanged, this, &OpenGLWindow::updateSpecularB);
     connect(specularASlider, &QSlider::valueChanged, this, &OpenGLWindow::updateSpecularA);
 
-    layout->addWidget(light0Checkbox);
-    layout->addWidget(flatButton);
-    layout->addWidget(gouraudButton);
-    layout->addWidget(ambientLabel);
-    layout->addWidget(ambientRSlider);
-    layout->addWidget(ambientGSlider);
-    layout->addWidget(ambientBSlider);
-    layout->addWidget(ambientASlider);
-    layout->addWidget(specularLabel);
-    layout->addWidget(specularRSlider);
-    layout->addWidget(specularGSlider);
-    layout->addWidget(specularBSlider);
-    layout->addWidget(specularASlider);
+    // Ambient 슬라이더 묶음
+    QVBoxLayout* ambientLayout = new QVBoxLayout();
+    QLabel* ambientLabel = new QLabel("Ambient Light RGBA", this);
+    ambientLabel->setAlignment(Qt::AlignCenter);
+    ambientLayout->addWidget(ambientLabel);
+    ambientLayout->addWidget(ambientRSlider);
+    ambientLayout->addWidget(ambientGSlider);
+    ambientLayout->addWidget(ambientBSlider);
+    ambientLayout->addWidget(ambientASlider);
 
-    setLayout(layout);
+    // Specular 슬라이더 묶음
+    QVBoxLayout* specularLayout = new QVBoxLayout();
+    QLabel* specularLabel = new QLabel("Specular Color RGBA", this);
+    specularLabel->setAlignment(Qt::AlignCenter);
+    specularLayout->addWidget(specularLabel);
+    specularLayout->addWidget(specularRSlider);
+    specularLayout->addWidget(specularGSlider);
+    specularLayout->addWidget(specularBSlider);
+    specularLayout->addWidget(specularASlider);
+
+    // 양쪽으로 배치
+    QHBoxLayout* slidersLayout = new QHBoxLayout();
+    slidersLayout->addLayout(ambientLayout);
+    slidersLayout->addLayout(specularLayout);
+
+    // UI 정리
+    controlLayout->addWidget(light0Checkbox);
+    controlLayout->addLayout(shadingButtonsLayout);
+    controlLayout->addLayout(slidersLayout);
+
+    // ------------ 전체 구성 ------------
+    mainLayout->addWidget(topUI);
+    mainLayout->addStretch(); // 나머지 공간은 OpenGL 렌더링용으로 비워둠
+
+    wrapper->setLayout(mainLayout);
+    wrapper->setMinimumHeight(250); // 상단 UI 공간 확보 (원하는 높이로 조절)
+
+    QVBoxLayout* outerLayout = new QVBoxLayout(this);
+    outerLayout->addWidget(wrapper);
+    setLayout(outerLayout);
+}
+
+// 레이와 삼각형 교차 체크
+bool OpenGLWindow::intersectRayTriangle(const Ray& ray, const QVector3D& v0, const QVector3D& v1, const QVector3D& v2, float& t, QVector3D& normal) {
+    const float EPSILON = 1e-6;
+    QVector3D edge1 = v1 - v0;
+    QVector3D edge2 = v2 - v0;
+    QVector3D h = QVector3D::crossProduct(ray.direction, edge2);
+    float a = QVector3D::dotProduct(edge1, h);
+    if (fabs(a) < EPSILON) return false;
+
+    float f = 1.0 / a;
+    QVector3D s = ray.origin - v0;
+    float u = f * QVector3D::dotProduct(s, h);
+    if (u < 0.0 || u > 1.0) return false;
+
+    QVector3D q = QVector3D::crossProduct(s, edge1);
+    float v = f * QVector3D::dotProduct(ray.direction, q);
+    if (v < 0.0 || u + v > 1.0) return false;
+
+    t = f * QVector3D::dotProduct(edge2, q);
+    if (t > EPSILON) {
+        normal = QVector3D::crossProduct(edge1, edge2).normalized();
+        return true;
+    }
+    return false;
+}
+
+// 장면 내 레이 교차 확인
+OpenGLWindow::HitInfo OpenGLWindow::traceRay(const Ray& ray) {
+    float closestT = 1e6;
+    HitInfo result;
+
+    for (const auto& face : objLoader.faces) {
+        const auto& v0 = objLoader.vertices[face.v1];
+        const auto& v1 = objLoader.vertices[face.v2];
+        const auto& v2 = objLoader.vertices[face.v3];
+
+        QVector3D vert0(v0.x, v0.y, v0.z);
+        QVector3D vert1(v1.x, v1.y, v1.z);
+        QVector3D vert2(v2.x, v2.y, v2.z);
+
+        float t;
+        QVector3D normal;
+        if (intersectRayTriangle(ray, vert0, vert1, vert2, t, normal)) {
+            if (t < closestT) {
+                if (std::isnan(t) || std::isnan(normal.x())) continue;
+
+                closestT = t;
+                result.hit = true;
+                result.distance = t;
+                result.position = ray.origin + ray.direction * t;
+                result.normal = normal;
+                result.objectId = 1;
+            }
+        }
+    }
+    return result;
+}
+
+// 섀도우 레이
+bool OpenGLWindow::isInShadow(const QVector3D& point, const QVector3D& lightPos) {
+    QVector3D dir = (lightPos - point).normalized();
+    Ray shadowRay{ point + dir * 0.01f, dir };
+    HitInfo hit = traceRay(shadowRay);
+    float distToLight = (lightPos - point).length();
+    return hit.hit && hit.distance < distToLight;
+}
+
+QVector3D OpenGLWindow::traceRecursive(const Ray& ray, int depth) {
+    if (depth > maxDepth) return QVector3D(0.1f, 0.1f, 0.1f);
+
+    HitInfo hit = traceRay(ray);
+    if (!hit.hit || std::isnan(hit.normal.x())) {
+        return QVector3D(0.2f, 0.2f, 0.2f);
+    }
+
+    QVector3D color(0.05f, 0.05f, 0.05f); // ambient
+    QVector3D lightDir = (lightPos - hit.position).normalized();
+
+    if (!isInShadow(hit.position, lightPos)) {
+        float diffuse = std::max(QVector3D::dotProduct(hit.normal.normalized(), lightDir), 0.0f);
+        color += diffuse * QVector3D(1.0f, 1.0f, 1.0f);
+    }
+
+    QVector3D reflectDir = ray.direction - 2.0f * QVector3D::dotProduct(ray.direction, hit.normal) * hit.normal;
+    reflectDir.normalize();
+
+    if (reflectDir.lengthSquared() < 1e-6 || std::isnan(reflectDir.x())) return color;
+
+    Ray reflectRay;
+    reflectRay.origin = hit.position + hit.normal * 0.01f;
+    reflectRay.direction = reflectDir;
+
+    QVector3D reflectColor = traceRecursive(reflectRay, depth + 1);
+    color += 0.5f * reflectColor;
+
+    return color;
+}
+
+
+// 전체 이미지 렌더링
+void OpenGLWindow::renderRayTracing() {
+    QImage image(width(), height(), QImage::Format_RGB32);
+    QVector3D modelOffset(0.0f, 0.0f, 0.0f);
+
+    for (int y = 0; y < height(); ++y) {
+        for (int x = 0; x < width(); ++x) {
+            float ndcX = (2.0f * x / width()) - 1.0f;
+            float ndcY = 1.0f - (2.0f * y / height());
+            QVector3D rayOrigin(0.0f, 3.0f, 10.0f);
+            QVector3D rayDir(ndcX, ndcY, -1.0f);
+            rayDir.normalize();
+
+            QVector3D color = traceRecursive(Ray{rayOrigin, rayDir}, 0);
+            int r = std::min(255, int(color.x() * 255));
+            int g = std::min(255, int(color.y() * 255));
+            int b = std::min(255, int(color.z() * 255));
+            image.setPixel(x, y, qRgb(r, g, b));
+        }
+    }
+
+    QPainter painter(this);
+    painter.drawImage(0, 0, image);
 }
 
 

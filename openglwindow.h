@@ -14,6 +14,10 @@
 #include <QSlider>
 #include <QLabel>
 
+#include <QPainter>
+#include <QVector3D>
+#include <cmath>
+
 
 #include "objloader.h"
 
@@ -39,6 +43,8 @@ protected:
 private slots: //assignment3 - 1
     // 조명 On/Off 토글
     void toggleLight0(bool enabled);
+    void toggleLight1(bool enabled);
+
 
     // 셰이딩 모드 전환
     void setFlatShading();
@@ -57,10 +63,16 @@ private slots: //assignment3 - 1
     void updateSpecularA(int value);
 
 private:
+
+    QWidget* controlPanel;
+    QOpenGLWidget* glWidget;
+
     ObjLoader objLoader;
 
     // 텍스처
     QOpenGLTexture* cowTexture = nullptr;
+    QOpenGLTexture* rayTraceTexture = nullptr;
+
 
     // 마우스 이벤트
     bool isDragging = false;
@@ -85,15 +97,22 @@ private:
     bool light0On = true;
     GLfloat light0Pos[4] = { 5.0f, 5.0f, 5.0f, 1.0f };
 
+    bool light1On = true;
+    GLfloat light1Pos[4] = { -5.0f, 5.0f, 5.0f, 1.0f };
+    GLfloat light1Diffuse[4] = { 1.0f, 1.0f, 0.5f, 1.0f }; // 노란빛
+
+
     // 조명 특성
-    GLfloat ambientLight[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
-    GLfloat specularColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    GLfloat ambientLight[4] = { 0.3f, 0.3f, 0.3f, 1.0f };
+    GLfloat specularColor[4] = { 2.0f, 2.0f, 2.0f, 1.0f };
 
     // 셰이딩 모드
     GLenum shadingModel = GL_SMOOTH;
 
     // UI 구성 요소
     QCheckBox* light0Checkbox;
+    QCheckBox* light1Checkbox;
+
     QPushButton* flatButton;
     QPushButton* gouraudButton;
 
@@ -108,6 +127,30 @@ private:
     QSlider* specularASlider;
 
     void setupUI(); // UI 초기화 함수
+
+    // === Ray Tracing ===
+    struct Ray {
+        QVector3D origin;
+        QVector3D direction;
+    };
+
+    struct HitInfo {
+        float distance;
+        QVector3D position;
+        QVector3D normal;
+        bool hit = false;
+        int objectId = -1;
+    };
+
+    bool useRayTracing = false;
+    int maxDepth = 3;
+    QVector3D lightPos = QVector3D(5.0f, 5.0f, 5.0f);
+
+    bool intersectRayTriangle(const Ray& ray, const QVector3D& v0, const QVector3D& v1, const QVector3D& v2, float& t, QVector3D& normal);
+    HitInfo traceRay(const Ray& ray);
+    bool isInShadow(const QVector3D& point, const QVector3D& lightPos);
+    QVector3D traceRecursive(const Ray& ray, int depth);
+    void renderRayTracing();
 };
 
 #endif // OPENGLWINDOW_H
