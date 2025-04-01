@@ -107,7 +107,7 @@ void OpenGLWindow::paintGL() {
 
     // Draw first cow (left)
     glPushMatrix();
-    glTranslatef(-2.5f, 0.0f, 0.0f);
+    glTranslatef(-2.5f, autoOffsetY, 0.0f);
     glRotatef(cow1RotationX, 1.0f, 0.0f, 0.0f);
     glRotatef(cow1RotationY, 0.0f, 1.0f, 0.0f);
     glRotatef(cow1RotationZ, 0.0f, 0.0f, 1.0f);
@@ -118,7 +118,7 @@ void OpenGLWindow::paintGL() {
 
     // Draw second cow (right)
     glPushMatrix();
-    glTranslatef(2.5f, 0.0f, 0.0f);
+    glTranslatef(2.5f, autoOffsetY, 0.0f);
     glRotatef(cow2RotationX, 1.0f, 0.0f, 0.0f);
     glRotatef(cow2RotationY, 0.0f, 1.0f, 0.0f);
     glRotatef(cow2RotationZ, 0.0f, 0.0f, 1.0f);
@@ -131,6 +131,14 @@ void OpenGLWindow::paintGL() {
 void OpenGLWindow::loadModel(const std::string& filename) {
     if (objLoader.load(filename)) {
         std::cout << "Model loaded: " << filename << std::endl;
+
+        // === autoOffsetY 계산 ===
+        float minY = std::numeric_limits<float>::max();
+        for (const auto& v : objLoader.vertices) {
+            if (v.y < minY) minY = v.y;
+        }
+        autoOffsetY = -minY;  // 바닥에 닿도록 offset 설정
+
         update();
     } else {
         std::cerr << "Failed to load model." << std::endl;
@@ -507,6 +515,7 @@ OpenGLWindow::HitInfo OpenGLWindow::traceRay(const Ray& ray) {
     float closestT = 1e6;
     HitInfo result;
 
+    // (1) 모델 교차 검사
     for (const auto& face : objLoader.faces) {
         const auto& v0 = objLoader.vertices[face.v1];
         const auto& v1 = objLoader.vertices[face.v2];
@@ -519,20 +528,37 @@ OpenGLWindow::HitInfo OpenGLWindow::traceRay(const Ray& ray) {
         float t;
         QVector3D normal;
         if (intersectRayTriangle(ray, vert0, vert1, vert2, t, normal)) {
-            if (t < closestT) {
-                if (std::isnan(t) || std::isnan(normal.x())) continue;
-
+            if (t < closestT && !std::isnan(t)) {
                 closestT = t;
                 result.hit = true;
                 result.distance = t;
                 result.position = ray.origin + ray.direction * t;
                 result.normal = normal;
-                result.objectId = 1;
+                result.objectId = 1; // 소
             }
         }
     }
+
+    // (2) 바닥 y = -1 평면 검사
+    if (fabs(ray.direction.y()) > 1e-6f) {
+        float t = (-1.0f - ray.origin.y()) / ray.direction.y();
+        if (t > 0.0f && t < closestT) {
+            QVector3D hitPoint = ray.origin + t * ray.direction;
+            if (hitPoint.x() >= -10.0f && hitPoint.x() <= 10.0f &&
+                hitPoint.z() >= -10.0f && hitPoint.z() <= 10.0f) {
+                closestT = t;
+                result.hit = true;
+                result.distance = t;
+                result.position = hitPoint;
+                result.normal = QVector3D(0, 1, 0); // 바닥 normal
+                result.objectId = 0; // 바닥
+            }
+        }
+    }
+
     return result;
 }
+
 
 // 섀도우 레이
 bool OpenGLWindow::isInShadow(const QVector3D& point, const QVector3D& lightPos) {
@@ -544,35 +570,46 @@ bool OpenGLWindow::isInShadow(const QVector3D& point, const QVector3D& lightPos)
 }
 
 QVector3D OpenGLWindow::traceRecursive(const Ray& ray, int depth) {
-    if (depth > maxDepth) return QVector3D(0.1f, 0.1f, 0.1f);
+    if (depth > maxDepth) return QVector3D(0.1f, 0.1f, 0.1f); // 배경색
 
     HitInfo hit = traceRay(ray);
     if (!hit.hit || std::isnan(hit.normal.x())) {
         return QVector3D(0.2f, 0.2f, 0.2f);
     }
 
-    QVector3D color(0.05f, 0.05f, 0.05f); // ambient
+    QVector3D color(0.0f, 0.0f, 0.0f);
     QVector3D lightDir = (lightPos - hit.position).normalized();
 
-    if (!isInShadow(hit.position, lightPos)) {
-        float diffuse = std::max(QVector3D::dotProduct(hit.normal.normalized(), lightDir), 0.0f);
-        color += diffuse * QVector3D(1.0f, 1.0f, 1.0f);
+    // 바닥에 그림자만
+    if (hit.objectId == 0) {
+        color = QVector3D(0.3f, 0.3f, 0.3f); // 기본 바닥색
+        if (isInShadow(hit.position, lightPos)) {
+            color *= 0.2f; // 그림자 영역은 어둡게
+        }
+        return color;
     }
 
+    // 소일 경우
+    if (!isInShadow(hit.position, lightPos)) {
+        float diffuse = std::max(QVector3D::dotProduct(hit.normal.normalized(), lightDir), 0.0f);
+        color += diffuse * QVector3D(1.0f, 1.0f, 1.0f); // 흰색광
+    }
+
+    // 반사
     QVector3D reflectDir = ray.direction - 2.0f * QVector3D::dotProduct(ray.direction, hit.normal) * hit.normal;
     reflectDir.normalize();
 
-    if (reflectDir.lengthSquared() < 1e-6 || std::isnan(reflectDir.x())) return color;
-
-    Ray reflectRay;
-    reflectRay.origin = hit.position + hit.normal * 0.01f;
-    reflectRay.direction = reflectDir;
-
-    QVector3D reflectColor = traceRecursive(reflectRay, depth + 1);
-    color += 0.5f * reflectColor;
+    if (!std::isnan(reflectDir.x())) {
+        Ray reflectRay;
+        reflectRay.origin = hit.position + hit.normal * 0.01f;
+        reflectRay.direction = reflectDir;
+        QVector3D reflectColor = traceRecursive(reflectRay, depth + 1);
+        color += 0.5f * reflectColor;
+    }
 
     return color;
 }
+
 
 
 // 전체 이미지 렌더링

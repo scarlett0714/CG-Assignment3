@@ -90,6 +90,8 @@ private:
     float cow2RotationZ = 0.0f;
 
     // 소 + 환경 그리기
+    float autoOffsetY = 0.0f;
+
     void drawCow();
     void drawFloorAndWalls();
 
@@ -142,7 +144,7 @@ private:
         int objectId = -1;
     };
 
-    bool useRayTracing = false;
+    bool useRayTracing = true;
     int maxDepth = 3;
     QVector3D lightPos = QVector3D(5.0f, 5.0f, 5.0f);
 
